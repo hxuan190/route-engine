@@ -2,8 +2,7 @@ package config
 
 import (
 	"errors"
-
-	"github.com/andrew-solarstorm/go-packages/common"
+	"os"
 )
 
 type ServerEnv = string
@@ -20,7 +19,15 @@ const (
 	AUTH_CONFIG_KEY       = "auth-config"
 	RPC_CONFIG_KEY        = "rpc-config"
 	AGGREGATOR_CONFIG_KEY = "aggregator-config"
+	LUT_CONFIG_KEY        = "lut-config"
 )
+
+func getEnvOrDefault(key, defaultValue string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return defaultValue
+}
 
 type GeneralConfig struct {
 	HTTPPort string
@@ -34,10 +41,10 @@ func (gc *GeneralConfig) Key() string {
 }
 
 func (gc *GeneralConfig) Load() error {
-	gc.HTTPPort = common.GetEnvOrDefault("HTTP_PORT", "8080")
-	gc.HTTPHost = common.GetEnvOrDefault("HTTP_HOST", "localhost")
-	gc.Env = common.GetEnvOrDefault("ENV", "dev")
-	gc.LogLevel = common.GetEnvOrDefault("LOG_LEVEL", "INFO")
+	gc.HTTPPort = getEnvOrDefault("HTTP_PORT", "8080")
+	gc.HTTPHost = getEnvOrDefault("HTTP_HOST", "localhost")
+	gc.Env = getEnvOrDefault("ENV", "dev")
+	gc.LogLevel = getEnvOrDefault("LOG_LEVEL", "INFO")
 	return gc.Validate()
 }
 

@@ -1,7 +1,8 @@
 package config
 
 import (
-	"github.com/andrew-solarstorm/go-packages/common"
+	"os"
+	"strconv"
 )
 
 type AggregatorConfig struct {
@@ -23,12 +24,21 @@ func (c *AggregatorConfig) Key() string {
 }
 
 func (c *AggregatorConfig) Load() error {
-	c.DBPath = common.GetEnvOrDefault("AGGREGATOR_DB_PATH", "./data/aggregator.db")
-	c.PersistenceEnabled = common.GetEnvOrDefault("AGGREGATOR_PERSISTENCE_ENABLED", "true") == "true"
-	c.PersistInterval = common.GetEnvOrDefaultInt("AGGREGATOR_PERSIST_INTERVAL", 30)
+	c.DBPath = getEnvOrDefault("AGGREGATOR_DB_PATH", "./data/route-engine.db")
+	c.PersistenceEnabled = getEnvOrDefault("AGGREGATOR_PERSISTENCE_ENABLED", "true") == "true"
+	c.PersistInterval = getEnvOrDefaultInt("AGGREGATOR_PERSIST_INTERVAL", 30)
 	return nil
 }
 
 func (c *AggregatorConfig) Validate() error {
 	return nil
+}
+
+func getEnvOrDefaultInt(key string, defaultValue int) int {
+	if v := os.Getenv(key); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			return i
+		}
+	}
+	return defaultValue
 }

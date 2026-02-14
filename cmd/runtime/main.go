@@ -1,25 +1,19 @@
 package main
 
 import (
-	"github.com/hxuan190/route-engine/internal/aggregator"
-	"github.com/hxuan190/route-engine/internal/aggregator/adapters/blockchain"
-	"github.com/hxuan190/route-engine/internal/aggregator/services/builder"
-	"github.com/hxuan190/route-engine/internal/aggregator/services/market"
-	"github.com/hxuan190/route-engine/internal/aggregator/services/router"
-	"github.com/hxuan190/route-engine/internal/common"
-	"github.com/hxuan190/route-engine/internal/config"
-
-	"github.com/hxuan190/route-engine/internal/http"
-	topmarket "github.com/hxuan190/route-engine/internal/market"
-	"github.com/hxuan190/route-engine/internal/price"
-	"github.com/hxuan190/route-engine/internal/repository"
-	"github.com/hxuan190/route-engine/internal/services"
-	valiant "github.com/hxuan190/valiant_go"
-	"github.com/hxuan190/yellowstone"
-
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog/log"
-	container "github.com/hxuan190/dicontainer-go"
+	container "github.com/thehyperflames/dicontainer-go"
+	valiant "github.com/thehyperflames/valiant_go"
+	yellowstone "github.com/thehyperflames/yellowstone"
+
+	aggregator "github.com/hxuan190/route-engine/internal"
+	"github.com/hxuan190/route-engine/internal/adapters/blockchain"
+	"github.com/hxuan190/route-engine/internal/config"
+	"github.com/hxuan190/route-engine/internal/http"
+	"github.com/hxuan190/route-engine/internal/services/builder"
+	"github.com/hxuan190/route-engine/internal/services/market"
+	"github.com/hxuan190/route-engine/internal/services/router"
 )
 
 // @title Drogo Aggregator API
@@ -70,7 +64,7 @@ import (
 
 func main() {
 	// Initialize HFT runtime optimizations (GOGC, GOMAXPROCS, GOMEMLIMIT)
-	common.InitRuntimeForHFT()
+	// common.InitRuntimeForHFT()
 
 	// load env
 	err := godotenv.Load()
@@ -94,21 +88,14 @@ func main() {
 		conf,
 
 		// services
-		// core (repository)
-		&repository.Repository{},
-
 		&yellowstone.Service{},
-
-		&services.TransactionService{},
-		&services.RPCAdapterService{},
-		&services.IngestService{},
 		&valiant.ValiantService{},
 		&builder.BuilderService{},
 		&router.Graph{},
+		&market.Service{},
 		&aggregator.Service{},
 
 		&blockchain.BlockhashCacheService{},
-
 		&http.HTTPService{},
 	)
 	if err != nil {

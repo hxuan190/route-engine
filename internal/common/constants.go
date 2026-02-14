@@ -11,4 +11,18 @@ var (
 	SystemProgramID   = solana.SystemProgramID
 	OracleSeed        = "oracle"
 	ProgramSignerSeed = "fogo_session_program_signer"
+
+	// Well-known stablecoins
+	USDCs = solana.MustPublicKeyFromBase58("uSd2czE61Evaf76RNbq4KPpXnkiL3irdzgLFUMe3NoG")
+	USDT  = solana.MustPublicKeyFromBase58("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
 )
+
+var stablecoins = map[solana.PublicKey]struct{}{
+	USDCs: {},
+	USDT:  {},
+}
+
+func IsStableCoin(mint solana.PublicKey) bool {
+	_, ok := stablecoins[mint]
+	return ok
+}

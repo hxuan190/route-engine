@@ -6,13 +6,9 @@ import (
 	"time"
 )
 
-const LUT_CONFIG_KEY = "lut-config"
-
 type LUTConfig struct {
-	// Addresses is a list of on-chain Address Lookup Table public keys (base58).
 	Addresses []string
 
-	// RefreshInterval controls how often LUT states are re-fetched from RPC.
 	RefreshInterval time.Duration
 }
 

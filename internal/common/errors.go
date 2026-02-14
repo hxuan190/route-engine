@@ -73,21 +73,3 @@ func HTTPErrorResourceConflict(msg string) *HttpError {
 		Message:    messageOrDefault(msg, "Resource conflict"),
 	}
 }
-
-// Legacy aliases (deprecated, use HTTP* versions)
-
-func HttpErrorBadRequest(msg string) *HttpError {
-	return HTTPErrorBadRequest(msg)
-}
-
-func HttpErrorNotFound(msg string) *HttpError {
-	return HTTPErrorNotFound(msg)
-}
-
-func HttpErrorUnauthorized(msg string) *HttpError {
-	return HTTPErrorUnauthorized(msg)
-}
-
-func HttpErrorConflict(msg string) *HttpError {
-	return HTTPErrorResourceConflict(msg)
-}
