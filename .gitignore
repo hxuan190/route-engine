@@ -1,0 +1,14 @@
+*.env
+*.env.dev
+*.env.staging
+*.env.prod
+*.db
+vendor/
+.idea/
+whirlpool/
+valiant-trade/
+
+logs/*.log
+hyperion-api
+# aggregator_contract/
+scripts/
