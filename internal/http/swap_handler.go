@@ -2,7 +2,6 @@ package http
 
 import (
 	"math/big"
-	"time"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gin-gonic/gin"
@@ -10,7 +9,6 @@ import (
 	aggregator "github.com/hxuan190/route-engine/internal"
 	"github.com/hxuan190/route-engine/internal/domain"
 	"github.com/hxuan190/route-engine/internal/http/httputil"
-	"github.com/hxuan190/route-engine/internal/metrics"
 )
 
 // RouteHandler handles HTTP requests for Hyperion Aggregator Route endpoints.
@@ -161,11 +159,6 @@ type SwapHandlerResponse struct {
 // @Failure 500 {object} map[string]string "Transaction building failed"
 // @Router /api/v1/swap [post]
 func (h *SwapHandler) buildSwap(c *gin.Context) {
-	start := time.Now()
-	defer func() {
-		metrics.SwapDuration.WithLabelValues("route_" + c.Request.FormValue("swapMode")).Observe(time.Since(start).Seconds())
-	}()
-
 	var req SwapHandlerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httputil.HandleBadRequest(c, "invalid request body: "+err.Error())
@@ -218,7 +211,6 @@ func (h *SwapHandler) buildSwap(c *gin.Context) {
 
 	routeRes, err := h.aggregatorSvc.BuildMultiHopRouteTransaction(c.Request.Context(), routeReq)
 	if err != nil {
-		metrics.SwapRequests.WithLabelValues("route_"+req.SwapMode, "false", "error").Inc()
 
 		switch err {
 		case aggregator.ErrNoPoolFound:
@@ -233,26 +225,6 @@ func (h *SwapHandler) buildSwap(c *gin.Context) {
 			httputil.HandleInternalError(c, "failed to build route: "+err.Error())
 		}
 		return
-	}
-
-	metrics.SwapRequests.WithLabelValues("route_"+req.SwapMode, "false", "success").Inc()
-
-	if routeRes.Simulation != nil {
-		metrics.SimulationRequests.Inc()
-		if routeRes.Simulation.Success {
-			metrics.SimulationSuccess.Inc()
-			if routeRes.Simulation.ComputeUnitsConsumed > 0 {
-				metrics.ComputeUnits.Observe(float64(routeRes.Simulation.ComputeUnitsConsumed))
-			}
-		} else {
-			reason := "unknown"
-			if routeRes.Simulation.InsufficientFunds {
-				reason = "insufficient_funds"
-			} else if routeRes.Simulation.SlippageExceeded {
-				reason = "slippage_exceeded"
-			}
-			metrics.SimulationFailures.WithLabelValues(reason).Inc()
-		}
 	}
 
 	response := SwapHandlerResponse{

@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"math/big"
 	"sync/atomic"
-	"time"
 
 	"github.com/holiman/uint256"
 	"github.com/hxuan190/route-engine/internal/domain"
-	"github.com/hxuan190/route-engine/internal/metrics"
 	vortex_go "github.com/thehyperflames/valiant_go/generated/valiant"
 )
 
@@ -36,13 +34,6 @@ func NewVortexQuoter() *VortexQuoter {
 // - Uses uint256 price impact calculation (saves 8 pooled big.Int ops)
 // - Minimizes big.Int allocations (only 2 for return struct)
 func (q *VortexQuoter) GetQuoteExactIn(pool *domain.Pool, amountIn *big.Int, aToB bool) (*domain.SwapQuote, error) {
-	// Sample metrics 1/128 to reduce hot-path overhead
-	sample := vortexQuoteCounter.Add(1)&0x7F == 0
-	var start time.Time
-	if sample {
-		start = time.Now()
-	}
-
 	if pool == nil {
 		return nil, ErrInvalidPool
 	}
@@ -96,10 +87,6 @@ func (q *VortexQuoter) GetQuoteExactIn(pool *domain.Pool, amountIn *big.Int, aTo
 	amountOutBig := new(big.Int).SetUint64(result.AmountOut)
 	feeBig := new(big.Int).SetUint64(result.FeeAmount)
 
-	if sample {
-		metrics.VortexQuoteDuration.Observe(time.Since(start).Seconds())
-	}
-
 	return &domain.SwapQuote{
 		AmountIn:       amountIn,
 		AmountOut:      amountOutBig,
@@ -112,13 +99,6 @@ func (q *VortexQuoter) GetQuoteExactIn(pool *domain.Pool, amountIn *big.Int, aTo
 
 // GetQuoteExactOut calculates input amount for CLMM swap (optimized hot path)
 func (q *VortexQuoter) GetQuoteExactOut(pool *domain.Pool, amountOut *big.Int, aToB bool) (*domain.SwapQuote, error) {
-	// Sample metrics 1/128 to reduce hot-path overhead
-	sample := vortexQuoteCounter.Add(1)&0x7F == 0
-	var start time.Time
-	if sample {
-		start = time.Now()
-	}
-
 	if pool == nil {
 		return nil, ErrInvalidPool
 	}
@@ -171,10 +151,6 @@ func (q *VortexQuoter) GetQuoteExactOut(pool *domain.Pool, amountOut *big.Int, a
 	// Only allocate big.Int for return struct (required by interface)
 	amountInBig := new(big.Int).SetUint64(result.AmountIn)
 	feeBig := new(big.Int).SetUint64(result.FeeAmount)
-
-	if sample {
-		metrics.VortexQuoteDuration.Observe(time.Since(start).Seconds())
-	}
 
 	return &domain.SwapQuote{
 		AmountIn:       amountInBig,

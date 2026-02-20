@@ -20,7 +20,6 @@ import (
 	"github.com/hxuan190/route-engine/internal/common"
 	"github.com/hxuan190/route-engine/internal/config"
 	"github.com/hxuan190/route-engine/internal/domain"
-	"github.com/hxuan190/route-engine/internal/metrics"
 	"github.com/hxuan190/route-engine/internal/services/router"
 )
 
@@ -394,10 +393,6 @@ func (svc *Service) logStats() {
 		readyPoolCount := svc.graph.GetReadyPoolCount()
 		vaultCount, vaultUpdates := svc.GetVaultStats()
 		tickArrayCount, tickArrayUpdates := svc.GetTickArrayStats()
-
-		metrics.PoolCount.Set(float64(poolCount))
-		metrics.ReadyPoolCount.Set(float64(readyPoolCount))
-		metrics.VaultCount.Set(float64(vaultCount))
 
 		log.Info().
 			Int("pools", poolCount).

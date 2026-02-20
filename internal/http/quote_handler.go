@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
-	"time"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gin-gonic/gin"
@@ -12,7 +11,6 @@ import (
 	aggregator "github.com/hxuan190/route-engine/internal"
 	"github.com/hxuan190/route-engine/internal/domain"
 	"github.com/hxuan190/route-engine/internal/http/httputil"
-	"github.com/hxuan190/route-engine/internal/metrics"
 	"github.com/hxuan190/route-engine/internal/services/router"
 )
 
@@ -251,8 +249,6 @@ func (h *QuoteHandler) buildQuoteResponse(req *QuoteRequest, multiQuote *domain.
 	severity := router.GetPriceImpactSeverity(multiQuote.PriceImpactBps)
 	warning := router.GetPriceImpactWarning(multiQuote.PriceImpactBps)
 
-	metrics.PriceImpact.WithLabelValues(string(severity)).Observe(float64(multiQuote.PriceImpactBps))
-
 	// Use pooled slice for routes
 	routes := routeInfoPool.Get().([]RouteInfo)[:0]
 	for _, hop := range multiQuote.Hops {
@@ -355,12 +351,6 @@ func (h *QuoteHandler) getQuote(c *gin.Context) {
 		return
 	}
 
-	start := time.Now()
-	swapMode := parsed.req.SwapMode
-	defer func() {
-		metrics.QuoteDuration.WithLabelValues(swapMode).Observe(time.Since(start).Seconds())
-	}()
-
 	var multiQuote *domain.MultiHopQuoteResult
 	var err error
 
@@ -372,11 +362,9 @@ func (h *QuoteHandler) getQuote(c *gin.Context) {
 	}
 
 	if err != nil {
-		metrics.QuoteRequests.WithLabelValues(swapMode, "error").Inc()
 		httputil.HandleNotFound(c, "no route found: "+err.Error())
 		return
 	}
 
-	metrics.QuoteRequests.WithLabelValues(swapMode, "success").Inc()
 	httputil.HandleSuccess(c, h.buildQuoteResponse(parsed.req, multiQuote, parsed.slippageBps, parsed.exactIn))
 }

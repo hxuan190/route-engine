@@ -8,7 +8,6 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/hxuan190/route-engine/internal/domain"
-	"github.com/hxuan190/route-engine/internal/metrics"
 )
 
 const (
@@ -237,7 +236,6 @@ func (qc *QuoteCache) cleanupLoop() {
 		case <-ticker.C:
 			qc.evictExpired()
 			// Update metrics
-			metrics.QuoteCacheSize.Set(float64(qc.Size()))
 		}
 	}
 }
@@ -258,11 +256,8 @@ func NewCachedRouter(graph *Graph, quoter QuoterFunc) *CachedRouter {
 func (r *CachedRouter) GetMultiHopQuote(inputMint, outputMint solana.PublicKey, amount *big.Int, exactIn bool) (*domain.MultiHopQuoteResult, error) {
 	// Check cache first
 	if cached := r.cache.Get(inputMint, outputMint, amount, exactIn); cached != nil {
-		metrics.QuoteCacheHits.Inc()
 		return cached, nil
 	}
-
-	metrics.QuoteCacheMisses.Inc()
 
 	// Compute quote
 	quote, err := r.Router.GetMultiHopQuote(inputMint, outputMint, amount, exactIn)

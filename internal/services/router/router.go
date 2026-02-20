@@ -4,11 +4,9 @@ import (
 	"math/big"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/hxuan190/route-engine/internal/domain"
-	"github.com/hxuan190/route-engine/internal/metrics"
 )
 
 // MaxSplits is the maximum number of pools to split across
@@ -292,11 +290,6 @@ func (r *Router) findOptimalSplit(pools []*domain.Pool, inputMint, outputMint so
 
 // binarySearchSplit finds optimal 2-pool split using binary search
 func (r *Router) binarySearchSplit(pools []*domain.Pool, inputMint, outputMint solana.PublicKey, totalAmount *big.Int, exactIn bool) *domain.SplitQuoteResult {
-	start := time.Now()
-	defer func() {
-		metrics.BinarySearchSplitDuration.Observe(time.Since(start).Seconds())
-	}()
-
 	if len(pools) != 2 {
 		return nil
 	}
@@ -362,11 +355,6 @@ func (r *Router) binarySearchSplit(pools []*domain.Pool, inputMint, outputMint s
 
 // optimizeThreeWaySplit uses gradient descent to optimize 3-pool splits
 func (r *Router) optimizeThreeWaySplit(pools []*domain.Pool, inputMint, outputMint solana.PublicKey, totalAmount *big.Int, exactIn bool) *domain.SplitQuoteResult {
-	start := time.Now()
-	defer func() {
-		metrics.ThreeWaySplitDuration.Observe(time.Since(start).Seconds())
-	}()
-
 	if len(pools) != 3 {
 		return nil
 	}
@@ -461,11 +449,6 @@ func (r *Router) optimizeThreeWaySplit(pools []*domain.Pool, inputMint, outputMi
 
 // calculateSplit calculates the output for a specific split configuration
 func (r *Router) calculateSplit(pools []*domain.Pool, inputMint, outputMint solana.PublicKey, totalAmount *big.Int, percents []uint8, exactIn bool) (*domain.SplitQuoteResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.CalculateSplitDuration.Observe(time.Since(start).Seconds())
-	}()
-
 	if len(pools) != len(percents) {
 		return nil, ErrNoPoolFound
 	}
@@ -996,9 +979,7 @@ func (c *requestScopedCache) Set(pool *domain.Pool, amount *big.Int, aToB, exact
 
 func (r *Router) GetMultiHopQuote(inputMint, outputMint solana.PublicKey, amount *big.Int, exactIn bool) (*domain.MultiHopQuoteResult, error) {
 	// Try direct route first - fastest path
-	directStart := time.Now()
 	directQuote, directErr := r.getDirectQuote(inputMint, outputMint, amount, exactIn)
-	metrics.DirectQuoteDuration.Observe(time.Since(directStart).Seconds())
 
 	// If direct route exists with good liquidity, return immediately (skip multi-hop search)
 	if directQuote != nil && directQuote.PriceImpactBps < 100 {
@@ -1007,9 +988,7 @@ func (r *Router) GetMultiHopQuote(inputMint, outputMint solana.PublicKey, amount
 
 	// For large trades with high price impact, try split routing on direct pools
 	if directQuote != nil && directQuote.PriceImpactBps >= 100 {
-		splitStart := time.Now()
 		splitQuote, err := r.GetSplitQuote(inputMint, outputMint, amount, exactIn)
-		metrics.SplitRouteDuration.Observe(time.Since(splitStart).Seconds())
 
 		if err == nil && splitQuote != nil && len(splitQuote.Splits) > 1 {
 			splitResult := r.ConvertSplitToMultiHop(splitQuote)
@@ -1024,7 +1003,6 @@ func (r *Router) GetMultiHopQuote(inputMint, outputMint solana.PublicKey, amount
 
 	// Use Bidirectional BFS to find multi-hop paths (up to 4 hops).
 	// V0 transactions with Address Lookup Tables support 3+ hop routes.
-	multiHopStart := time.Now()
 	paths := r.Graph.FindPaths(inputMint, outputMint, 4)
 
 	if len(paths) > 0 {
@@ -1047,8 +1025,6 @@ func (r *Router) GetMultiHopQuote(inputMint, outputMint solana.PublicKey, amount
 			}
 		}
 
-		metrics.MultiHopDuration.Observe(time.Since(multiHopStart).Seconds())
-
 		if bestQuote != nil {
 			// Compare with direct quote if it exists
 			if directQuote != nil {
@@ -1062,7 +1038,6 @@ func (r *Router) GetMultiHopQuote(inputMint, outputMint solana.PublicKey, amount
 			return bestQuote, nil
 		}
 	}
-	metrics.MultiHopDuration.Observe(time.Since(multiHopStart).Seconds())
 
 	// Return direct quote if available
 	if directQuote != nil {
@@ -1246,8 +1221,6 @@ func (r *Router) getDirectQuote(inputMint, outputMint solana.PublicKey, amount *
 		return nil, ErrNoPoolFound
 	}
 
-	metrics.PoolsEvaluated.Observe(float64(len(directPools)))
-
 	// For small pool counts, sequential is faster (goroutine overhead)
 	if len(directPools) <= 3 {
 		return r.getDirectQuoteSequential(directPools, inputMint, outputMint, amount, exactIn)
@@ -1414,10 +1387,6 @@ type twoHopResult struct {
 }
 
 func (r *Router) getTwoHopQuoteExactIn(inputMint, intermediate, outputMint solana.PublicKey, amountIn *big.Int) (*domain.MultiHopQuoteResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.TwoHopQuoteDuration.Observe(time.Since(start).Seconds())
-	}()
 
 	firstHopPools := r.Graph.GetDirectRoutesForPair(inputMint, intermediate)
 	secondHopPools := r.Graph.GetDirectRoutesForPair(intermediate, outputMint)
@@ -1538,11 +1507,6 @@ type twoHopResultOut struct {
 }
 
 func (r *Router) getTwoHopQuoteExactOut(inputMint, intermediate, outputMint solana.PublicKey, amountOut *big.Int) (*domain.MultiHopQuoteResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.TwoHopQuoteDuration.Observe(time.Since(start).Seconds())
-	}()
-
 	firstHopPools := r.Graph.GetDirectRoutesForPair(inputMint, intermediate)
 	secondHopPools := r.Graph.GetDirectRoutesForPair(intermediate, outputMint)
 

@@ -9,7 +9,6 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -51,7 +50,6 @@ func (svc *HTTPService) Start() error {
 	corsConf.AddAllowHeaders("Authorization", "X-Wallet-Address", "X-Timestamp", "X-Signature")
 	r.Use(cors.New(corsConf))
 
-	r.Use(middlewares.MetricsMiddleware())
 	r.Use(svc.rateLimiter.RateLimitMiddleware())
 
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -59,7 +57,7 @@ func (svc *HTTPService) Start() error {
 		c.JSON(gohttp.StatusOK, gin.H{"status": "ok"})
 	})
 
-	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	// r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	api := r.Group("api")
 	pub := api.Group(API_VERSION)

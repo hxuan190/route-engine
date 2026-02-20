@@ -3,16 +3,10 @@ package router
 import (
 	"math/big"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/hxuan190/route-engine/internal/domain"
-	"github.com/hxuan190/route-engine/internal/metrics"
 )
-
-// PathEvaluationTimeout is the maximum time to spend evaluating a single path
-const PathEvaluationTimeout = 50 * time.Millisecond
 
 // pathEvaluationResult holds the result of evaluating a single path
 type pathEvaluationResult struct {
@@ -20,21 +14,11 @@ type pathEvaluationResult struct {
 	err   error
 }
 
-// pathEvalCounter for sampling metrics (1/64 calls)
-var pathEvalCounter atomic.Uint64
-
 // evaluatePaths simulates all candidate paths in parallel and returns the best one
-// Optimized: samples metrics 1/64, uses pre-allocated result slice for small path counts
+// Optimized: uses pre-allocated result slice for small path counts
 func (r *Router) evaluatePaths(paths [][]solana.PublicKey, amount *big.Int, exactIn bool) (*domain.MultiHopQuoteResult, error) {
 	if len(paths) == 0 {
 		return nil, ErrNoRoute
-	}
-
-	// Sample metrics 1/64 to reduce hot-path overhead
-	sample := pathEvalCounter.Add(1)&0x3F == 0
-	var start time.Time
-	if sample {
-		start = time.Now()
 	}
 
 	// Limit number of paths to evaluate
@@ -45,9 +29,6 @@ func (r *Router) evaluatePaths(paths [][]solana.PublicKey, amount *big.Int, exac
 	// For small path counts, sequential evaluation avoids goroutine overhead
 	if len(paths) <= 2 {
 		bestRoute := r.evaluatePathsSequential(paths, amount, exactIn)
-		if sample {
-			metrics.MultiHopDuration.Observe(time.Since(start).Seconds())
-		}
 		if bestRoute == nil {
 			return nil, ErrNoRoute
 		}
@@ -90,10 +71,6 @@ func (r *Router) evaluatePaths(paths [][]solana.PublicKey, amount *big.Int, exac
 				bestRoute = res.route
 			}
 		}
-	}
-
-	if sample {
-		metrics.MultiHopDuration.Observe(time.Since(start).Seconds())
 	}
 
 	if bestRoute == nil {

@@ -8,9 +8,8 @@ import (
 	"time"
 
 	"github.com/gagliardetto/solana-go"
-	container "github.com/thehyperflames/dicontainer-go"
 	"github.com/hxuan190/route-engine/internal/domain"
-	"github.com/hxuan190/route-engine/internal/metrics"
+	container "github.com/thehyperflames/dicontainer-go"
 )
 
 // MaxPoolsPerPair limits pools per token pair for faster routing
@@ -30,9 +29,9 @@ type graphSnapshot struct {
 	pools poolsMap
 
 	// Optimized O(1) lookup structures
-	adjFast    *adjSlice         // Integer ID based adjacency for O(1) lookup
-	registry   *TokenRegistry    // Token ID registry (shared, not owned)
-	superEdges *superEdgeMatrix  // Pre-computed SuperEdges for zero-alloc lookup
+	adjFast    *adjSlice        // Integer ID based adjacency for O(1) lookup
+	registry   *TokenRegistry   // Token ID registry (shared, not owned)
+	superEdges *superEdgeMatrix // Pre-computed SuperEdges for zero-alloc lookup
 }
 
 // graphDiff tracks incremental changes for efficient snapshot updates
@@ -164,7 +163,6 @@ func (g *Graph) applyPendingChanges() {
 // applyIncrementalUpdate applies changes to snapshot without full rebuild
 // Must be called with mu held
 func (g *Graph) applyIncrementalUpdate() {
-	metrics.GraphIncrementalUpdates.Inc()
 
 	oldSnap := g.getSnapshot()
 	if oldSnap == nil {
@@ -235,8 +233,7 @@ func (g *Graph) applyIncrementalUpdate() {
 	g.snapshot.Store(&graphSnapshot{adj: newAdj, pools: newPools})
 	g.poolCount.Store(int64(len(newPools)))
 	g.readyPoolCount.Store(readyCount)
-	metrics.PoolCount.Set(float64(len(newPools)))
-	metrics.ReadyPoolCount.Set(float64(readyCount))
+
 }
 
 // addPoolToAdj adds a pool to adjacency map
@@ -308,8 +305,6 @@ func (g *Graph) StopRefresher() {
 // rebuildSnapshot creates a new immutable snapshot with pre-filtered ready pools
 // Must be called with mu held
 func (g *Graph) rebuildSnapshot() {
-	metrics.GraphSnapshotRebuilds.Inc()
-
 	// Use pooled allocations to reduce GC pressure
 	newAdj := GetAdjMap()
 	newPools := GetPoolsMap()
@@ -384,8 +379,6 @@ func (g *Graph) rebuildSnapshot() {
 	})
 	g.poolCount.Store(int64(len(g.pools)))
 	g.readyPoolCount.Store(readyCount)
-	metrics.PoolCount.Set(float64(len(g.pools)))
-	metrics.ReadyPoolCount.Set(float64(readyCount))
 
 	// Recycle old snapshot (safe because new snapshot is now active)
 	if oldSnap != nil {
