@@ -50,7 +50,8 @@ func (svc *HTTPService) Start() error {
 	corsConf.AddAllowHeaders("Authorization", "X-Wallet-Address", "X-Timestamp", "X-Signature")
 	r.Use(cors.New(corsConf))
 
-	r.Use(svc.rateLimiter.RateLimitMiddleware())
+	// Allow stress test or DDOS
+	// r.Use(svc.rateLimiter.RateLimitMiddleware())
 
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	r.GET("/health", func(c *gin.Context) {

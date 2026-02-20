@@ -39,7 +39,6 @@ type StoredPool struct {
 	Active          bool   `json:"active"`
 	LastUpdatedSlot uint64 `json:"lastUpdatedSlot"`
 
-	// CLMM-specific fields (populated if Type == PoolTypeCLMM)
 	CLMMData *StoredCLMMData `json:"clmmData,omitempty"`
 }
 

@@ -125,7 +125,6 @@ func (p *Pool) HasFlags(mask PoolFlags) bool {
 	return p.Flags&mask == mask
 }
 
-// UpdateReserveA sets ReserveA and syncs the uint64 shadow field
 func (p *Pool) UpdateReserveA(reserve *big.Int) {
 	p.ReserveA = reserve
 	if reserve != nil && reserve.IsUint64() {
@@ -138,20 +137,17 @@ func (p *Pool) UpdateReserveA(reserve *big.Int) {
 	}
 }
 
-// UpdateReserveB sets ReserveB and syncs the uint64 shadow field
 func (p *Pool) UpdateReserveB(reserve *big.Int) {
 	p.ReserveB = reserve
 	if reserve != nil && reserve.IsUint64() {
 		p.ReserveBU64 = reserve.Uint64()
 	} else if reserve != nil {
-		// Clamp to max uint64 for very large reserves
 		p.ReserveBU64 = ^uint64(0)
 	} else {
 		p.ReserveBU64 = 0
 	}
 }
 
-// UpdateReserves sets both reserves and syncs uint64 shadow fields
 func (p *Pool) UpdateReserves(reserveA, reserveB *big.Int) {
 	p.UpdateReserveA(reserveA)
 	p.UpdateReserveB(reserveB)

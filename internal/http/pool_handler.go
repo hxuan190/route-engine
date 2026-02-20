@@ -28,14 +28,8 @@ func (h *PoolHandler) Root() string {
 	return "/pools"
 }
 
-// PoolStatsResponse contains aggregated statistics about tracked liquidity pools
 type PoolStatsResponse struct {
-	// Total number of active liquidity pools being tracked
-	// Includes pools from all supported DEXs (Raydium, Orca, Meteora, etc.)
 	PoolCount int `json:"pool_count" example:"1247"`
-
-	// Total number of pool state updates processed since service start
-	// Indicates how many times pool data has been refreshed from on-chain
 	UpdateCount uint64 `json:"update_count" example:"45892"`
 }
 
@@ -47,39 +41,26 @@ func (h *PoolHandler) getStats(c *gin.Context) {
 	})
 }
 
-// PoolInfo contains basic information about a liquidity pool
 type PoolInfo struct {
-	// Pool address (Solana public key)
 	Address string `json:"address" example:"HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ"`
-
-	// Pool type/DEX name (e.g., "Raydium", "Orca", "Meteora", "PumpFun")
 	Type string `json:"type" example:"Raydium"`
 
-	// First token mint address in the pair
 	TokenMintA string `json:"token_mint_a" example:"So11111111111111111111111111111111111111112"`
 
-	// Second token mint address in the pair
 	TokenMintB string `json:"token_mint_b" example:"uSd2czE61Evaf76RNbq4KPpXnkiL3irdzgLFUMe3NoG"`
 
-	// Whether the pool is currently active and available for routing
 	Active bool `json:"active" example:"true"`
 }
 
-// PoolListResponse contains paginated list of liquidity pools
 type PoolListResponse struct {
-	// Array of pool information objects for the current page
 	Pools []PoolInfo `json:"pools"`
 
-	// Total number of pools across all pages
 	Total int `json:"total" example:"1247"`
 
-	// Current page number (1-indexed)
 	Page int `json:"page" example:"1"`
 
-	// Number of pools per page (max 500)
 	Limit int `json:"limit" example:"100"`
 
-	// Total number of pages available
 	Pages int `json:"pages" example:"13"`
 }
 
@@ -130,43 +111,29 @@ func (h *PoolHandler) listPools(c *gin.Context) {
 	})
 }
 
-// PoolDetailResponse contains detailed information about a specific liquidity pool
 type PoolDetailResponse struct {
-	// Pool address (Solana public key)
 	Address string `json:"address" example:"HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ"`
 
-	// Pool type/DEX name
 	Type string `json:"type" example:"Raydium"`
 
-	// Program ID that owns this pool
 	ProgramID string `json:"program_id" example:"675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"`
 
-	// First token mint address
 	TokenMintA string `json:"token_mint_a" example:"So11111111111111111111111111111111111111112"`
 
-	// Second token mint address
 	TokenMintB string `json:"token_mint_b" example:"uSd2czE61Evaf76RNbq4KPpXnkiL3irdzgLFUMe3NoG"`
 
-	// Token vault address for token A
 	TokenVaultA string `json:"token_vault_a" example:"5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1"`
 
-	// Token vault address for token B
 	TokenVaultB string `json:"token_vault_b" example:"36c6YqAwyGKQG66XEp2dJc5JqjaBNv7sVghEtJv4c7u6"`
 
-	// Current reserve/liquidity of token A in smallest units
 	ReserveA string `json:"reserve_a" example:"1234567890123"`
 
-	// Current reserve/liquidity of token B in smallest units
 	ReserveB string `json:"reserve_b" example:"9876543210987"`
 
-	// Pool fee rate in basis points (1 bps = 0.01%)
-	// Common values: 25 (0.25%), 30 (0.3%), 100 (1%)
 	FeeRate uint16 `json:"fee_rate_bps" example:"25"`
 
-	// Whether the pool is currently active
 	Active bool `json:"active" example:"true"`
 
-	// Solana slot number when pool data was last updated
 	LastUpdatedSlot uint64 `json:"last_updated_slot" example:"245831456"`
 }
 

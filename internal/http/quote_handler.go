@@ -14,16 +14,15 @@ import (
 	"github.com/hxuan190/route-engine/internal/services/router"
 )
 
-// Object pools for reducing allocations in hot paths
 var (
 	routeInfoPool = sync.Pool{
 		New: func() interface{} {
-			return make([]RouteInfo, 0, 3) // Max 3 hops
+			return make([]RouteInfo, 0, 3)
 		},
 	}
 	routePathPool = sync.Pool{
 		New: func() interface{} {
-			return make([]string, 0, 4) // Max 4 tokens in path
+			return make([]string, 0, 4)
 		},
 	}
 	bigIntPool = sync.Pool{
@@ -208,7 +207,6 @@ func (h *QuoteHandler) parseQuoteRequest(c *gin.Context) (*parsedQuoteRequest, b
 		slippageBps = 50
 	}
 
-	// Check if amount fits in uint64 for fast path
 	canUseFast := amount.IsUint64()
 	var amountU64 uint64
 	if canUseFast {
@@ -228,7 +226,6 @@ func (h *QuoteHandler) parseQuoteRequest(c *gin.Context) (*parsedQuoteRequest, b
 }
 
 func (h *QuoteHandler) buildQuoteResponse(req *QuoteRequest, multiQuote *domain.MultiHopQuoteResult, slippageBps uint16, exactIn bool) QuoteResponse {
-	// Use pooled big.Int for threshold calculation
 	temp := bigIntPool.Get().(*big.Int)
 	defer bigIntPool.Put(temp)
 
@@ -249,10 +246,8 @@ func (h *QuoteHandler) buildQuoteResponse(req *QuoteRequest, multiQuote *domain.
 	severity := router.GetPriceImpactSeverity(multiQuote.PriceImpactBps)
 	warning := router.GetPriceImpactWarning(multiQuote.PriceImpactBps)
 
-	// Use pooled slice for routes
 	routes := routeInfoPool.Get().([]RouteInfo)[:0]
 	for _, hop := range multiQuote.Hops {
-		// Defensive check for nil pool
 		if hop.Pool == nil {
 			continue
 		}
@@ -274,7 +269,6 @@ func (h *QuoteHandler) buildQuoteResponse(req *QuoteRequest, multiQuote *domain.
 		})
 	}
 
-	// Use pooled slice for route path
 	routePath := routePathPool.Get().([]string)[:0]
 	for _, mint := range multiQuote.Route {
 		routePath = append(routePath, mint.String())
@@ -287,13 +281,11 @@ func (h *QuoteHandler) buildQuoteResponse(req *QuoteRequest, multiQuote *domain.
 		}
 	}
 
-	// Copy slices for response (pooled slices will be reused)
 	routesCopy := make([]RouteInfo, len(routes))
 	copy(routesCopy, routes)
 	routePathCopy := make([]string, len(routePath))
 	copy(routePathCopy, routePath)
 
-	// Return pooled slices
 	routeInfoPool.Put(routes[:0])
 	routePathPool.Put(routePath[:0])
 
@@ -354,7 +346,6 @@ func (h *QuoteHandler) getQuote(c *gin.Context) {
 	var multiQuote *domain.MultiHopQuoteResult
 	var err error
 
-	// Use fast path (uint64) when amount fits, otherwise fallback to big.Int
 	if parsed.canUseFast {
 		multiQuote, err = h.aggregatorSvc.GetMultiHopQuoteFast(parsed.inputMint, parsed.outputMint, parsed.amountU64, parsed.exactIn)
 	} else {
