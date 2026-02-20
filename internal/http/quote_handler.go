@@ -14,23 +14,15 @@ import (
 	"github.com/hxuan190/route-engine/internal/services/router"
 )
 
-var (
-	routeInfoPool = sync.Pool{
-		New: func() interface{} {
-			return make([]RouteInfo, 0, 3)
-		},
-	}
-	routePathPool = sync.Pool{
-		New: func() interface{} {
-			return make([]string, 0, 4)
-		},
-	}
-	bigIntPool = sync.Pool{
-		New: func() interface{} {
-			return new(big.Int)
-		},
-	}
-)
+// bigIntPool reuses big.Int allocations for slippage calculations.
+// routeInfoPool and routePathPool were removed: they forced a make+copy on every
+// request anyway (Gin's JSON encoder needs a stable slice), so they added Pool
+// overhead with zero GC benefit.
+var bigIntPool = sync.Pool{
+	New: func() interface{} {
+		return new(big.Int)
+	},
+}
 
 type QuoteHandler struct {
 	aggregatorSvc *aggregator.Service
@@ -226,19 +218,44 @@ func (h *QuoteHandler) parseQuoteRequest(c *gin.Context) (*parsedQuoteRequest, b
 }
 
 func (h *QuoteHandler) buildQuoteResponse(req *QuoteRequest, multiQuote *domain.MultiHopQuoteResult, slippageBps uint16, exactIn bool) QuoteResponse {
-	temp := bigIntPool.Get().(*big.Int)
-	defer bigIntPool.Put(temp)
+	// Pull two big.Int values from the pool: one for the slippage multiplier (temp)
+	// and one for the result (otherAmountThreshold). We keep them separate to avoid
+	// aliasing bugs — big.Int methods that receive the same pointer as both src and
+	// dst can produce incorrect results depending on the internal implementation.
+	otherAmountThreshold := bigIntPool.Get().(*big.Int)
+	defer func() {
+		bigIntPool.Put(otherAmountThreshold)
+	}()
 
-	otherAmountThreshold := new(big.Int)
+	temp := bigIntPool.Get().(*big.Int)
+	defer func() {
+		bigIntPool.Put(temp)
+	}()
+
 	if exactIn {
 		temp.SetInt64(int64(10000 - slippageBps))
 		otherAmountThreshold.Mul(multiQuote.AmountOut, temp)
-		otherAmountThreshold.Div(otherAmountThreshold, temp.SetInt64(10000))
+		temp.SetInt64(10000) // explicit reassign — never mutate inside a call arg
+		otherAmountThreshold.Div(otherAmountThreshold, temp)
 	} else {
-		temp.SetInt64(int64(10000 + slippageBps))
-		otherAmountThreshold.Mul(multiQuote.AmountIn, temp)
-		otherAmountThreshold.Div(otherAmountThreshold, temp.SetInt64(10000))
+		// Max Input = AmountIn * 10000 / (10000 - slippageBps)
+		// Dividing by (1 - slippage) is the correct DEX formula (Uniswap/Raydium style).
+		// The old formula [AmountIn * (10000 + bps) / 10000] underestimates max input:
+		// e.g. at 50% slippage, old gives 1.5x but correct answer is 2x, causing tx failure.
+		divisor := int64(10000 - slippageBps)
+		if divisor > 0 {
+			temp.SetInt64(10000)
+			otherAmountThreshold.Mul(multiQuote.AmountIn, temp)
+			temp.SetInt64(divisor)
+			otherAmountThreshold.Div(otherAmountThreshold, temp)
+		} else {
+			// slippageBps >= 10000 (>= 100%) — degenerate input, fall back to AmountIn.
+			otherAmountThreshold.Set(multiQuote.AmountIn)
+		}
 	}
+
+	// Capture the string before returning the big.Int to the pool.
+	otherAmountThresholdStr := otherAmountThreshold.String()
 
 	priceImpactPercent := float64(multiQuote.PriceImpactBps) / 100.0
 	priceImpactPercentStr := fmt.Sprintf("%.2f%%", priceImpactPercent)
@@ -246,7 +263,9 @@ func (h *QuoteHandler) buildQuoteResponse(req *QuoteRequest, multiQuote *domain.
 	severity := router.GetPriceImpactSeverity(multiQuote.PriceImpactBps)
 	warning := router.GetPriceImpactWarning(multiQuote.PriceImpactBps)
 
-	routes := routeInfoPool.Get().([]RouteInfo)[:0]
+	// Single pass over Hops: build RouteInfo slice and accumulate fees together.
+	routes := make([]RouteInfo, 0, len(multiQuote.Hops))
+	var totalFeeBps uint16
 	for _, hop := range multiQuote.Hops {
 		if hop.Pool == nil {
 			continue
@@ -267,27 +286,13 @@ func (h *QuoteHandler) buildQuoteResponse(req *QuoteRequest, multiQuote *domain.
 			InputMint:   hopInputMint,
 			OutputMint:  hopOutputMint,
 		})
+		totalFeeBps += hop.Pool.FeeRate
 	}
 
-	routePath := routePathPool.Get().([]string)[:0]
+	routePath := make([]string, 0, len(multiQuote.Route))
 	for _, mint := range multiQuote.Route {
 		routePath = append(routePath, mint.String())
 	}
-
-	var totalFeeBps uint16
-	for _, hop := range multiQuote.Hops {
-		if hop.Pool != nil {
-			totalFeeBps += hop.Pool.FeeRate
-		}
-	}
-
-	routesCopy := make([]RouteInfo, len(routes))
-	copy(routesCopy, routes)
-	routePathCopy := make([]string, len(routePath))
-	copy(routePathCopy, routePath)
-
-	routeInfoPool.Put(routes[:0])
-	routePathPool.Put(routePath[:0])
 
 	return QuoteResponse{
 		InputMint:            req.InputMint,
@@ -299,9 +304,9 @@ func (h *QuoteHandler) buildQuoteResponse(req *QuoteRequest, multiQuote *domain.
 		PriceImpactSeverity:  string(severity),
 		PriceImpactWarning:   warning,
 		FeeBps:               totalFeeBps,
-		OtherAmountThreshold: otherAmountThreshold.String(),
-		Routes:               routesCopy,
-		RoutePath:            routePathCopy,
+		OtherAmountThreshold: otherAmountThresholdStr,
+		Routes:               routes,
+		RoutePath:            routePath,
 		HopCount:             len(multiQuote.Hops),
 	}
 }
@@ -352,8 +357,12 @@ func (h *QuoteHandler) getQuote(c *gin.Context) {
 		multiQuote, err = h.aggregatorSvc.GetMultiHopQuote(parsed.inputMint, parsed.outputMint, parsed.amount, parsed.exactIn)
 	}
 
-	if err != nil {
-		httputil.HandleNotFound(c, "no route found: "+err.Error())
+	if err != nil || multiQuote == nil {
+		errMsg := "no route found"
+		if err != nil {
+			errMsg += ": " + err.Error()
+		}
+		httputil.HandleNotFound(c, errMsg)
 		return
 	}
 
